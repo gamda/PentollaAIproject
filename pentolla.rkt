@@ -1,4 +1,6 @@
 #lang racket
+;;;; Daniel Garcia
+;;;; Jason Tupper
 
 ;;;; pentolla_soln.rkt
 ;;;; CPSC 481 - Fall 2013
@@ -252,7 +254,7 @@
                              
                              ((0 0) (0 1) (1 1) (1 2) (2 2)) ; W
                              ((0 0) (1 0) (2 0) (1 1) (1 2)) ; T
-                             ((1 0) (1 1) (1 2) (0 2) (1 2)) ; F
+                             ((1 0) (1 1) (2 1) (0 2) (1 2)) ; F
                              ((0 0) (2 0) (0 1) (1 1) (2 1)) ; U
                              ((0 0) (1 0) (0 1) (1 1)) ; O4
                              ((0 0) (0 1) (1 1) (0 2)) ; T4
@@ -278,6 +280,10 @@
 ;;;; END OF PROVIDED DEFINITIONS
 
 ;;;; START OF STUDENT-AUTHORED DEFINITIONS
+
+(define legal-rotations (list 0 1 2 3))
+(define start-state (state '() start-tiles 0))
+(define legal-coords (list 1 2 3 4 5 6 7 8 9 10 11 12 13 14))
 
 (define (tile-min-x t)
   (define posns (tile-posns t))
@@ -318,7 +324,7 @@
 )
 
 (define (rotation-count? v)
-  (if (member v (list 0 1 2 3))
+  (if (member v legal-rotations)
       ;; then
       #t
       ;; else
@@ -354,8 +360,8 @@
 
 (define (posn-on-board? pos) 
   (if
-    (and (member (posn-x pos) (list 1 2 3 4 5 6 7 8 9 10 11 12 13 14) )
-         (member (posn-y pos) (list 1 2 3 4 5 6 7 8 9 10 11 12 13 14) ) )
+    (and (member (posn-x pos) legal-coords)
+         (member (posn-y pos) legal-coords) )
     ;; then
     #t
     ;; else
@@ -458,10 +464,6 @@
          cornerPosns)
 )
 
-(define start-state
-  (state '() start-tiles 0)
-)
-
 (define (state-whose-turn state)
   (if (eq? (length (state-played state)) 0)
       'blue
@@ -492,10 +494,10 @@
 (define (state-action-violation s action)
   (cond 
     [(not (action? action))
-      "This is not an action.\n"]
+      "This is not an action."]
     [(and (< (length (state-played s)) 2)
           (pass? action))
-     "You can't pass on the first turn.\n"]
+     "You can't pass on your first turn."]
     [(pass? action) #f]
     ;;After this we can assume the action is a move
     ;; Correct color
@@ -505,14 +507,14 @@
     [(not (tile-on-board? (tile-translate (tile-rotate 
                   (move-tile action) (move-rotations action)) 
                   (move-x action) (move-y action))))
-     "Tile must be placed on board"]
-    ;; Blue's first turn
+     "Tile must be placed on board."]
+    ;; Blue's first turn: must cover (5,5)
     [(eq? s start-state)
      (if (member (posn 5 5) (tile-posns (move->tile-on-board action)))
          #f
          "You must place your tile on (5, 5)"
      )]
-    ;; Orange's first turn
+    ;; Orange's first turn: must cover (10,10)
     [(eq? (length (state-played s)) 1)
      (if (member (posn 10 10) (tile-posns (move->tile-on-board action)))
          #f
@@ -555,10 +557,6 @@
       ;; else
       (state (list* (move->tile-on-board action) (state-played s))
              (delete (move-tile action) (state-unplayed s))
-             #|
-             (filter (lambda (t) (tile-equal? (move-tile action) t))
-                       (state-unplayed s))
-             |#
              0
       )
    )
@@ -578,22 +576,13 @@
   ;   for each tile (of player's color)
   (define possibleTiles (filter (which-color? color) (state-unplayed s)))
        
-  (remove-duplicates 
-   (filter (lambda(x) (state-action-legal? s x))
-           (append (list 'pass)
-                   (for*/list ([t possibleTiles]
-                               [x (list 1 2 3 4 5 6 7 8 9 10 11 12 13 14)]
-                               [y (list 1 2 3 4 5 6 7 8 9 10 11 12 13 14)]
-                               [rot (list 0 1 2 3)])
-                     (move t x y rot)))) 
-   equal?
-   #:key (lambda(x) (sort (tile-posns (move->tile-on-board x))
-               (lambda(a b) (cond
-                              [(< (posn-x a) (posn-x b)) #t]
-                              [(< (posn-y a) (posn-y b)) #t]
-                              [else #f]
-                              )))
-   ))
+  (filter (lambda(x) (state-action-legal? s x))
+          (append (list 'pass)
+                  (for*/list ([t possibleTiles]
+                              [x legal-coords]
+                              [y legal-coords]
+                              [rot legal-rotations])
+                    (move t x y rot))))
 )
 
 (define (state-children s)
@@ -912,8 +901,13 @@
   ;; My code says there are 264 legal moves in the first turn. I didn't
   ;; analyze this by hand so I am not 100% certain that figure is correct,
   ;; but it's surely in the right ballpark.
-  (map displayln (map move->tile-on-board (state-legal-actions start-state)))
-  (define start-state-children-count 294)
+  
+  ;; 1 domino * 2 posns covering (5, 5) each * 4 rotations = 8
+  ;; 2 triominoes * 3 posns covering (5, 5) each * 4 rotations = 24
+  ;; 5 tetrominoes * 4 posns covering (5, 5) each * 4 rotations = 80
+  ;; 12 pentominoes * 5 posns covering (5, 5) each * 4 rotations = 240
+  ;; 8+24+80+240 = 356
+  (define start-state-children-count 356)
   (check-equal? (length (state-legal-actions start-state))
                 start-state-children-count)
   (check-equal? (count pass? (state-legal-actions start-state)) 0)
